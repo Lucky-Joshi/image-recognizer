@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Object Recognition System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        .animate-slideIn {
+            animation: slideIn 0.5s ease;
+        }
+        .file-upload-hover:hover {
+            border-color: #764ba2;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-purple-600 to-indigo-700 text-white p-8 text-center">
+                <h1 class="text-4xl md:text-5xl font-bold mb-3">🔍 Object Recognition System</h1>
+                <p class="text-lg md:text-xl opacity-90">Upload an image and identify objects using AI-powered vision</p>
+            </div>
+
+            <!-- Content -->
+            <div class="p-8 md:p-12">
+                <!-- Alert -->
+                <div id="alert" class="hidden mb-6 p-4 rounded-lg"></div>
+
+                <!-- Object Name Input -->
+                <div class="mb-8">
+                    <label for="objectName" class="block text-gray-700 font-semibold mb-3 text-lg">
+                        Object to Find:
+                    </label>
+                    <input 
+                        type="text" 
+                        id="objectName" 
+                        placeholder="e.g., dog, car, person, laptop"
+                        class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-purple-600 transition-colors"
+                    >
+                </div>
+
+                <!-- File Upload Area -->
+                <div 
+                    id="fileUpload" 
+                    class="border-4 border-dashed border-purple-600 rounded-2xl p-12 text-center cursor-pointer bg-gray-50 file-upload-hover transition-all duration-300"
+                >
+                    <input type="file" id="fileInput" accept="image/*" class="hidden">
+                    <div class="text-6xl mb-4">📸</div>
+                    <div class="text-gray-700">
+                        <p class="text-xl font-semibold mb-2">Click to upload or drag and drop</p>
+                        <p class="text-sm text-gray-500">Supports: JPG, PNG, GIF, WEBP</p>
+                    </div>
+                </div>
+
+                <!-- Image Preview Section -->
+                <div id="previewSection" class="hidden mt-8">
+                    <img 
+                        id="imagePreview" 
+                        class="max-w-full max-h-96 rounded-2xl shadow-lg mx-auto mb-6"
+                        alt="Preview"
+                    >
+                    <button 
+                        id="analyzeBtn"
+                        class="w-full bg-gradient-to-r from-purple-600 to-indigo-700 text-white py-4 rounded-xl text-lg font-semibold hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+                    >
+                        Analyze Image
+                    </button>
+                </div>
+
+                <!-- Loading Spinner -->
+                <div id="loading" class="hidden text-center my-8">
+                    <div class="inline-block w-16 h-16 border-4 border-gray-200 border-t-purple-600 rounded-full animate-spin mb-4"></div>
+                    <p class="text-gray-600 text-lg">Analyzing image with AI...</p>
+                </div>
+
+                <!-- Results Section -->
+                <div id="resultSection" class="hidden mt-8 p-8 rounded-2xl animate-slideIn">
+                    <div id="resultIcon" class="text-7xl text-center mb-4"></div>
+                    <div id="resultText" class="text-2xl font-bold text-center mb-6"></div>
+                    <div id="resultDetails" class="bg-white p-6 rounded-xl"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Server Status Indicator -->
+        <div class="max-w-4xl mx-auto mt-6 text-center">
+            <div id="serverStatus" class="inline-flex items-center gap-2 bg-white px-6 py-3 rounded-full shadow-lg">
+                <div class="w-3 h-3 rounded-full bg-gray-400" id="statusDot"></div>
+                <span class="text-sm font-medium text-gray-600" id="statusText">Checking server...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let uploadedImageBase64 = null;
+        const SERVER_URL = 'http://localhost:5000';
+
+        // DOM Elements
+        const fileUpload = document.getElementById('fileUpload');
+        const fileInput = document.getElementById('fileInput');
+        const previewSection = document.getElementById('previewSection');
+        const imagePreview = document.getElementById('imagePreview');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const loading = document.getElementById('loading');
+        const resultSection = document.getElementById('resultSection');
+        const alert = document.getElementById('alert');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+
+        // Check server status on load
+        checkServerStatus();
+
+        // File Upload Event Listeners
+        fileUpload.addEventListener('click', () => fileInput.click());
+
+        fileUpload.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUpload.classList.add('border-indigo-700', 'bg-indigo-50');
+        });
+
+        fileUpload.addEventListener('dragleave', () => {
+            fileUpload.classList.remove('border-indigo-700', 'bg-indigo-50');
+        });
+
+        fileUpload.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUpload.classList.remove('border-indigo-700', 'bg-indigo-50');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleFileUpload(file);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleFileUpload(file);
+            }
+        });
+
+        analyzeBtn.addEventListener('click', analyzeImage);
+
+        // Functions
+        function handleFileUpload(file) {
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                uploadedImageBase64 = e.target.result;
+                previewSection.classList.remove('hidden');
+                resultSection.classList.add('hidden');
+            };
+            
+            reader.readAsDataURL(file);
+        }
+
+        async function checkServerStatus() {
+            try {
+                const response = await fetch(`${SERVER_URL}/`);
+                if (response.ok) {
+                    statusDot.classList.remove('bg-gray-400');
+                    statusDot.classList.add('bg-green-500');
+                    statusText.textContent = 'Server connected';
+                } else {
+                    throw new Error('Server not responding');
+                }
+            } catch (error) {
+                statusDot.classList.remove('bg-gray-400');
+                statusDot.classList.add('bg-red-500');
+                statusText.textContent = 'Server offline';
+                showAlert('Unable to connect to server. Please start the Flask server.', 'error');
+            }
+        }
+
+        async function analyzeImage() {
+            const objectName = document.getElementById('objectName').value.trim();
+
+            if (!objectName) {
+                showAlert('Please enter the object you want to find', 'error');
+                return;
+            }
+
+            if (!uploadedImageBase64) {
+                showAlert('Please upload an image first', 'error');
+                return;
+            }
+
+            loading.classList.remove('hidden');
+            resultSection.classList.add('hidden');
+            analyzeBtn.disabled = true;
+            analyzeBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            try {
+                const response = await fetch(`${SERVER_URL}/api/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image: uploadedImageBase64,
+                        object_name: objectName
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Analysis failed');
+                }
+
+                displayResult(data.result, objectName);
+
+            } catch (error) {
+                showAlert(`Error: ${error.message}`, 'error');
+                console.error('Error:', error);
+            } finally {
+                loading.classList.add('hidden');
+                analyzeBtn.disabled = false;
+                analyzeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function displayResult(result, objectName) {
+            const resultIcon = document.getElementById('resultIcon');
+            const resultText = document.getElementById('resultText');
+            const resultDetails = document.getElementById('resultDetails');
+
+            resultSection.classList.remove('bg-green-100', 'border-green-500', 'bg-red-100', 'border-red-500');
+            resultSection.classList.add('border-2');
+            
+            if (result.found) {
+                resultSection.classList.add('bg-green-50', 'border-green-500');
+                resultIcon.textContent = '✅';
+                resultText.textContent = `Yes! "${objectName}" was found in the image`;
+                resultText.classList.remove('text-red-600');
+                resultText.classList.add('text-green-700');
+                
+                resultDetails.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex items-start gap-3">
+                            <span class="font-semibold text-gray-700 min-w-fit">Confidence:</span>
+                            <span class="text-gray-600">${result.confidence}</span>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="font-semibold text-gray-700 min-w-fit">Description:</span>
+                            <span class="text-gray-600">${result.description}</span>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="font-semibold text-gray-700 min-w-fit">Location:</span>
+                            <span class="text-gray-600">${result.location}</span>
+                        </div>
+                        ${result.additional_objects && result.additional_objects.length > 0 ? `
+                            <div class="flex items-start gap-3">
+                                <span class="font-semibold text-gray-700 min-w-fit">Other objects:</span>
+                                <span class="text-gray-600">${result.additional_objects.join(', ')}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                resultSection.classList.add('bg-red-50', 'border-red-500');
+                resultIcon.textContent = '❌';
+                resultText.textContent = `No "${objectName}" found in the image`;
+                resultText.classList.remove('text-green-700');
+                resultText.classList.add('text-red-600');
+                
+                resultDetails.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex items-start gap-3">
+                            <span class="font-semibold text-gray-700 min-w-fit">Analysis:</span>
+                            <span class="text-gray-600">${result.description}</span>
+                        </div>
+                        ${result.additional_objects && result.additional_objects.length > 0 ? `
+                            <div class="flex items-start gap-3">
+                                <span class="font-semibold text-gray-700 min-w-fit">Objects detected:</span>
+                                <span class="text-gray-600">${result.additional_objects.join(', ')}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            resultSection.classList.remove('hidden');
+        }
+
+        function showAlert(message, type) {
+            const bgColor = type === 'error' ? 'bg-red-100 border-red-400 text-red-700' : 'bg-blue-100 border-blue-400 text-blue-700';
+            alert.className = `mb-6 p-4 rounded-lg border ${bgColor}`;
+            alert.textContent = message;
+            alert.classList.remove('hidden');
+            
+            setTimeout(() => {
+                alert.classList.add('hidden');
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

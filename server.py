@@ -11,7 +11,7 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
 # Configure Gemini API - Replace with your actual API key
-GEMINI_API_KEY = 'AIzaSyCj7m59ncV1FDh6xIH3mzfu8ajw2ezYpgI'
+GEMINI_API_KEY = 'Your-API-Key'
 genai.configure(api_key=GEMINI_API_KEY)
 
 @app.route('/')
@@ -180,7 +180,7 @@ def validate_result(result):
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
-    api_configured = GEMINI_API_KEY != 'AIzaSyCj7m59ncV1FDh6xIH3mzfu8ajw2ezYpgI'
+    api_configured = GEMINI_API_KEY != 'Your-API-Key'
     
     return jsonify({
         'status': 'healthy',
@@ -190,7 +190,7 @@ def health_check():
 
 if __name__ == '__main__':
     # Check if API key is configured
-    if GEMINI_API_KEY == 'AIzaSyCj7m59ncV1FDh6xIH3mzfu8ajw2ezYpgI':
+    if GEMINI_API_KEY == 'Your-API-Key':
         print("\n" + "="*60)
         print("⚠️  WARNING: Gemini API key not configured!")
         print("="*60)
